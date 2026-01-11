@@ -1,5 +1,6 @@
 import streamlit as st
 import random
+import streamlit.components.v1 as components
 
 # --- 数当てゲームの関数 ---
 def number_guessing_game():
@@ -145,17 +146,154 @@ def janken_game():
         st.session_state.janken_result = None
         st.rerun()
 
+# --- インベーダーゲームの関数 ---
+def invader_game():
+    st.header("👾 インベーダー・クエスト")
+    st.write("左右キーで移動、スペースキーで発射！")
+
+    game_html = """
+    <div id="game-container" style="text-align: center; background: #222; padding: 10px; border-radius: 10px;">
+        <canvas id="gameCanvas" width="400" height="400" style="background: black; border: 2px solid #555;"></canvas>
+        <div style="color: white; font-family: 'Courier New', Courier, monospace; margin-top: 10px; font-size: 20px;">
+            SCORE: <span id="score">0</span>
+        </div>
+    </div>
+
+    <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score');
+
+    let score = 0;
+    const player = { x: 180, y: 370, w: 40, h: 20, speed: 5 };
+    const bullets = [];
+    const enemies = [];
+    const enemyRows = 3;
+    const enemyCols = 6;
+
+    function initEnemies() {
+        enemies.length = 0;
+        for (let i = 0; i < enemyRows; i++) {
+            for (let j = 0; j < enemyCols; j++) {
+                enemies.push({ x: j * 50 + 50, y: i * 40 + 30, w: 30, h: 20, alive: true });
+            }
+        }
+    }
+    initEnemies();
+
+    let rightPressed = false;
+    let leftPressed = false;
+    let spacePressed = false;
+
+    window.addEventListener("keydown", (e) => {
+        if(e.key == "Right" || e.key == "ArrowRight") rightPressed = true;
+        if(e.key == "Left" || e.key == "ArrowLeft") leftPressed = true;
+        if(e.key == " " || e.code == "Space") {
+            if (!spacePressed) bullets.push({ x: player.x + 18, y: player.y, r: 3, speed: 7 });
+            spacePressed = true;
+            e.preventDefault();
+        }
+    });
+    window.addEventListener("keyup", (e) => {
+        if(e.key == "Right" || e.key == "ArrowRight") rightPressed = false;
+        if(e.key == "Left" || e.key == "ArrowLeft") leftPressed = false;
+        if(e.key == " " || e.code == "Space") spacePressed = false;
+    });
+
+    let enemyDirection = 1;
+    let enemyMoveCounter = 0;
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // プレイヤー
+        ctx.fillStyle = "#00FF00";
+        ctx.fillRect(player.x, player.y, player.w, player.h);
+        ctx.fillRect(player.x + 15, player.y - 5, 10, 5);
+
+        if(rightPressed && player.x < canvas.width - player.w) player.x += player.speed;
+        if(leftPressed && player.x > 0) player.x -= player.speed;
+
+        // 弾
+        ctx.fillStyle = "yellow";
+        for(let i = bullets.length - 1; i >= 0; i--) {
+            let b = bullets[i];
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+            ctx.fill();
+            b.y -= b.speed;
+            if(b.y < 0) bullets.splice(i, 1);
+        }
+
+        // 敵
+        let edgeReached = false;
+        let aliveCount = 0;
+        enemies.forEach(e => {
+            if (!e.alive) return;
+            aliveCount++;
+            ctx.fillStyle = "red";
+            ctx.fillRect(e.x, e.y, e.w, e.h);
+            ctx.fillStyle = "white";
+            ctx.fillRect(e.x + 5, e.y + 5, 5, 5);
+            ctx.fillRect(e.x + 20, e.y + 5, 5, 5);
+            
+            bullets.forEach((b, bIndex) => {
+                if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
+                    e.alive = false;
+                    bullets.splice(bIndex, 1);
+                    score += 10;
+                    scoreElement.innerText = score;
+                }
+            });
+
+            if (enemyMoveCounter > 30) {
+                if (e.x + 10 * enemyDirection > canvas.width - e.w || e.x + 10 * enemyDirection < 0) edgeReached = true;
+            }
+        });
+
+        if (enemyMoveCounter > 30) {
+            if (edgeReached) {
+                enemyDirection *= -1;
+                enemies.forEach(e => e.y += 20);
+            } else {
+                enemies.forEach(e => e.x += 10 * enemyDirection);
+            }
+            enemyMoveCounter = 0;
+        }
+        enemyMoveCounter++;
+
+        if (enemies.some(e => e.alive && e.y > 350)) {
+            alert("GAME OVER! SCORE: " + score);
+            score = 0; scoreElement.innerText = 0;
+            initEnemies();
+        }
+
+        if (aliveCount === 0) {
+            alert("YOU WIN! SCORE: " + score);
+            score = 0; scoreElement.innerText = 0;
+            initEnemies();
+        }
+
+        requestAnimationFrame(draw);
+    }
+    draw();
+    </script>
+    """
+    components.html(game_html, height=500)
+
 # --- メイン制御 ---
 def main():
     st.set_page_config(page_title="My Game Center", page_icon="🕹️")
     
     st.sidebar.title("🕹️ Game Center")
-    game_choice = st.sidebar.selectbox("遊ぶゲームを選んでね", ["数当てゲーム", "じゃんけんバトル"])
+    game_choice = st.sidebar.selectbox("遊ぶゲームを選んでね", ["数当てゲーム", "じゃんけんバトル", "インベーダーゲーム"])
 
     if game_choice == "数当てゲーム":
         number_guessing_game()
     elif game_choice == "じゃんけんバトル":
         janken_game()
+    elif game_choice == "インベーダーゲーム":
+        invader_game()
 
     # サイドバーに共通の設定
     st.sidebar.markdown("---")
