@@ -148,14 +148,16 @@ def janken_game():
 
 # --- インベーダーゲームの関数 ---
 def invader_game():
-    st.header("👾 インベーダー・クエスト")
-    st.write("左右キーで移動、スペースキーで発射！")
+    st.header("👾 インベーダー・クエスト PRO")
+    st.write("【スコアの掟】正確に、かつ速く殲滅せよ！")
 
     game_html = """
-    <div id="game-container" style="text-align: center; background: #222; padding: 10px; border-radius: 10px;">
-        <canvas id="gameCanvas" width="400" height="400" style="background: black; border: 2px solid #555;"></canvas>
-        <div style="color: white; font-family: 'Courier New', Courier, monospace; margin-top: 10px; font-size: 20px;">
-            SCORE: <span id="score">0</span>
+    <div id="game-container" style="text-align: center; background: #1a1a1a; padding: 15px; border-radius: 15px; border: 2px solid #333;">
+        <canvas id="gameCanvas" width="400" height="400" style="background: black; border: 1px solid #444; cursor: crosshair;"></canvas>
+        <div style="display: flex; justify-content: space-around; color: #00FF00; font-family: 'Courier New', monospace; margin-top: 15px; background: #000; padding: 10px; border-radius: 5px;">
+            <div>SCORE: <span id="score">0</span></div>
+            <div>SHOTS: <span id="shots">0</span></div>
+            <div>TIME: <span id="timer">0.0</span>s</div>
         </div>
     </div>
 
@@ -163,8 +165,15 @@ def invader_game():
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const scoreElement = document.getElementById('score');
+    const shotsElement = document.getElementById('shots');
+    const timerElement = document.getElementById('timer');
 
     let score = 0;
+    let shotsFired = 0;
+    let enemiesDefeated = 0;
+    let startTime = Date.now();
+    let gameActive = true;
+
     const player = { x: 180, y: 370, w: 40, h: 20, speed: 5 };
     const bullets = [];
     const enemies = [];
@@ -186,10 +195,16 @@ def invader_game():
     let spacePressed = false;
 
     window.addEventListener("keydown", (e) => {
+        if(!gameActive) return;
         if(e.key == "Right" || e.key == "ArrowRight") rightPressed = true;
         if(e.key == "Left" || e.key == "ArrowLeft") leftPressed = true;
         if(e.key == " " || e.code == "Space") {
-            if (!spacePressed) bullets.push({ x: player.x + 18, y: player.y, r: 3, speed: 7 });
+            if (!spacePressed) {
+                bullets.push({ x: player.x + 18, y: player.y, r: 3, speed: 8 });
+                shotsFired++;
+                score = Math.max(0, score - 5); // 弾を撃つと少し減点
+                shotsElement.innerText = shotsFired;
+            }
             spacePressed = true;
             e.preventDefault();
         }
@@ -197,14 +212,27 @@ def invader_game():
     window.addEventListener("keyup", (e) => {
         if(e.key == "Right" || e.key == "ArrowRight") rightPressed = false;
         if(e.key == "Left" || e.key == "ArrowLeft") leftPressed = false;
-        if(e.key == " " || e.code == "Space") spacePressed = false;
+        if(e.key == " ") spacePressed = false;
     });
 
     let enemyDirection = 1;
     let enemyMoveCounter = 0;
 
+    function calculateFinalScore() {
+        let timeElapsed = (Date.now() - startTime) / 1000;
+        let accuracy = shotsFired > 0 ? (enemiesDefeated / shotsFired) : 0;
+        // 基本点 + 命中率ボーナス + タイムボーナス(最大1000)
+        let timeBonus = Math.max(0, 1000 - Math.floor(timeElapsed * 10));
+        let accuracyBonus = Math.floor(accuracy * 1000);
+        return score + accuracyBonus + timeBonus;
+    }
+
     function draw() {
+        if(!gameActive) return;
+        
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let timeElapsed = (Date.now() - startTime) / 1000;
+        timerElement.innerText = timeElapsed.toFixed(1);
 
         // プレイヤー
         ctx.fillStyle = "#00FF00";
@@ -233,25 +261,23 @@ def invader_game():
             aliveCount++;
             ctx.fillStyle = "red";
             ctx.fillRect(e.x, e.y, e.w, e.h);
-            ctx.fillStyle = "white";
-            ctx.fillRect(e.x + 5, e.y + 5, 5, 5);
-            ctx.fillRect(e.x + 20, e.y + 5, 5, 5);
             
             bullets.forEach((b, bIndex) => {
                 if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
                     e.alive = false;
                     bullets.splice(bIndex, 1);
-                    score += 10;
+                    enemiesDefeated++;
+                    score += 100;
                     scoreElement.innerText = score;
                 }
             });
 
-            if (enemyMoveCounter > 30) {
+            if (enemyMoveCounter > 25) {
                 if (e.x + 10 * enemyDirection > canvas.width - e.w || e.x + 10 * enemyDirection < 0) edgeReached = true;
             }
         });
 
-        if (enemyMoveCounter > 30) {
+        if (enemyMoveCounter > 25) {
             if (edgeReached) {
                 enemyDirection *= -1;
                 enemies.forEach(e => e.y += 20);
@@ -263,15 +289,16 @@ def invader_game():
         enemyMoveCounter++;
 
         if (enemies.some(e => e.alive && e.y > 350)) {
-            alert("GAME OVER! SCORE: " + score);
-            score = 0; scoreElement.innerText = 0;
-            initEnemies();
+            gameActive = false;
+            alert("GAME OVER! スコアが足りなかったようです...\\n最終スコア: " + score);
+            location.reload();
         }
 
         if (aliveCount === 0) {
-            alert("YOU WIN! SCORE: " + score);
-            score = 0; scoreElement.innerText = 0;
-            initEnemies();
+            gameActive = false;
+            let final = calculateFinalScore();
+            alert("MISSION COMPLETE!\\n\\n撃破点: " + score + "\\n命中率: " + Math.floor((enemiesDefeated/shotsFired)*100) + "%\\nタイム: " + timeElapsed.toFixed(1) + "秒\\n━━━━━━━━━━\\n最終スコア: " + final);
+            location.reload();
         }
 
         requestAnimationFrame(draw);
@@ -279,7 +306,7 @@ def invader_game():
     draw();
     </script>
     """
-    components.html(game_html, height=500)
+    components.html(game_html, height=550)
 
 # --- メイン制御 ---
 def main():
